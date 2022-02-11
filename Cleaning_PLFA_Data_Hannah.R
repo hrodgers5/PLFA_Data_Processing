@@ -1,6 +1,8 @@
 require(tidyverse)
 require(textreadr)
 require(openxlsx)
+library(readxl)
+require(writexl)
 
 #Authors: This R script was written by Shannon Albeke (the parsing RTF file part) and Hannah Rodgers (the data processing part).
 
@@ -9,12 +11,15 @@ require(openxlsx)
 #Last updated 1/31/2022
 
 #### PARSING THE RTF FILE ####
-setwd("C:/Users/hanna/Desktop/Work in Progress/PLFA")
+setwd("C:/Users/hanna/Desktop/Work in Progress/PLFA/OREI 2021 PLFA Data/")
 
 # Read in the rtf file, each row is a character within a vector
-rtf<- read_rtf("PLFA_OREI_1.5.2022.rtf")
+rtf<- read_rtf("OREI batch1 1.05.22.rtf") %>% 
+  # split elements by newline character, if present
+  str_split(pattern='\n') %>% 
+  unlist()
 
-# Find the headers to each section
+# Find the headers to each section (headers start with 'Volume')
 vol<- which(str_detect(rtf, pattern = "Volume"))
 
 # Loop through each of the groups in vol, try and extract the tabular data
@@ -22,7 +27,8 @@ outRTF<- data.frame()
 outPrim<- data.frame()
 for(i in 1:length(vol)){
   if(i != length(vol)){
-    # Get the subset of data
+    # start with the first line of a sample,
+    # grab all lines in file until the start of the next sample
     tmp<- rtf[vol[i]:(vol[(i + 1)] - 1)]
   } else
   {
@@ -55,18 +61,28 @@ for(i in 1:length(vol)){
   # Need to use logic to deal with times when the ECL doesn't exist
   if(str_detect(v, "ECL Deviation")){
     # Sample ID
-    SampID<- str_squish(str_sub(v, str_locate(v, "Sample ID:")[2] + 1, str_locate(v, "ECL Deviation:")[1] - 1))
+    SampID<- str_squish(str_sub(v, 
+                                str_locate(v, "Sample ID:")[2] + 1, 
+                                str_locate(v, "ECL Deviation:")[1] - 1))
     # ECL Deviation
-    ECL<- str_squish(str_sub(v, str_locate(v, "ECL Deviation:")[2] + 1, str_locate(v, "Reference ECL Shift:")[1] - 1))
+    ECL<- str_squish(str_sub(v, 
+                             str_locate(v, "ECL Deviation:")[2] + 1, 
+                             str_locate(v, "Reference ECL Shift:")[1] - 1))
     # ECL Ref
-    RefECL<- str_squish(str_sub(v, str_locate(v, "Reference ECL Shift:")[2] + 1, str_locate(v, "Number Reference Peaks:")[1] - 1))
+    RefECL<- str_squish(str_sub(v, 
+                                str_locate(v, "Reference ECL Shift:")[2] + 1, 
+                                str_locate(v, "Number Reference Peaks:")[1] - 1))
     # Ref Peaks
-    RefPeaks<- str_squish(str_sub(v, str_locate(v, "Number Reference Peaks:")[2] + 1, str_locate(v, "Total Response:")[1] - 1))
+    RefPeaks<- str_squish(str_sub(v, 
+                                  str_locate(v, "Number Reference Peaks:")[2] + 1, 
+                                  str_locate(v, "Total Response:")[1] - 1))
     
   } else
   {
     # Sample ID
-    SampID<- str_squish(str_sub(v, str_locate(v, "Sample ID:")[2] + 1, str_locate(v, "Total Response:")[1] - 1)) 
+    SampID<- str_squish(str_sub(v, 
+                                str_locate(v, "Sample ID:")[2] + 1, 
+                                str_locate(v, "Total Response:")[1] - 1)) 
     
   }
   
@@ -104,6 +120,9 @@ for(i in 1:length(vol)){
   tmpDF<- data.frame()
   # get the tabular information
   myTab<- tmp[str_detect(tmp, pattern = "\\|")]
+  # splitting by \n created issues when creating new table rows:
+  # must remove "hanging chads"
+  myTab <- myTab[which(myTab != '*| ')]
     
   # set the column names for the entire table
   if(i == 1){
@@ -114,7 +133,7 @@ for(i in 1:length(vol)){
     df<- data.frame(t(str_squish(unlist(str_split(myTab[j], pattern = "\\|")))))
     names(df)<- nm
     tmpDF<- rbind(tmpDF, df)
-  } # Close j loop
+  }# Close j loop
     
   # now update the meta data for the rows
   tmpDF$SampleCenter <- SampCtr
@@ -128,7 +147,27 @@ for(i in 1:length(vol)){
   outRTF<- rbind(outRTF, tmpDF)
   
 }
+# (hannah's part): MERGING YOUR RTF FILES ####
 
+#check "outRTF." It should have all your sample names in "SampleID"
+
+#Stop here. Select only the rows with your samples and blanks, then save and move on to the next rtf file. Process all your rtf files and save them as different things, then merge all your PLFA rtf files into one big file to analyze together.
+
+#my_PLFAs_batch1 <- outRTF[1643:2186,]
+#write_xlsx(my_PLFAs_batch1, "parsedRTFs/PLFA_batch1.xlsx")
+
+#my_PLFAs_batch2 <- outRTF[103:1628,]
+#write_xlsx(my_PLFAs_batch2, "parsedRTFs/PLFA_batch2.xlsx")
+
+#my_PLFAs_batch3 <- outRTF[46:1682,]
+#write_xlsx(my_PLFAs_batch3, "parsedRTFs/PLFA_batch3.xlsx")
+
+#my_PLFAs_batch4 <- outRTF[153:1338,]
+#write_xlsx(my_PLFAs_batch4, "parsedRTFs/PLFA_batch4.xlsx")
+
+#finally, merge all the data into one big dataframe. you can save it, to stop here and read it in later.
+my_PLFAs <- rbind(my_PLFAs_batch1, my_PLFAs_batch2, my_PLFAs_batch3, my_PLFAs_batch4, use.names = TRUE)
+write_xlsx(my_PLFAs, "parsedRTFs/PLFA_all.xlsx")
 
 #### DATA PROCESSING ####
 
@@ -137,23 +176,31 @@ for(i in 1:length(vol)){
 # PLFA (nmol/g) = (area of peak/areaISTD * nmol of ISTD) * (std area in blank/std area in sample) / sample weight
 
 ## EXPLANATION OF THE EQUATION:
-#PART 1: area of peak/areaISTD * nmol of ISTD : 
-#this converts peak area to nmol for all PLFAs, based on the nmol of standard that we added
 
-#PART 2: std area in blank/std area in sample : 
-#This standardizes all values based on the blank. We assume that the blank had 100% extraction efficiency, and that the samples had lower extraction efficiency due to some inhibition by soil particles.
+#PART 1: (area of peak/areaISTD * nmol of ISTD) 
+#converts peak area to nmol for all PLFAs, based on the nmol of standard that we added
 
-#PART 3: lastly, we subtract any peaks in the blank from everything, and divide by sample weight to get our results in nmol/g of soil
+#PART 2: (std area in blank/std area in sample)
+#standardizes all values based on the blank. We assume that the blank had 100% extraction efficiency, and that the samples had lower extraction efficiency due to some inhibition by soil particles.
+
+#PART 3: lastly, subtract any peaks in the blank from all samples, and divide by sample weight to get our results in nmol/g of soil
 
 
-#this part of the code will select only the data you need, standardize your peak values by comparing the sample ISTD to the blank ISTD, subtract the blank peaks from all sample peaks, then save to excel
+#### DATA CLEANING ####
+#here, we select only the data we'll need, pull out our internal standard and blank values, subtract the blank peaks out from everything, and put it into a nice datatable
 
-###DATA CLEANING 
+
+# OPTIONAL: MAKE A SEPARATE DATA TABLE THAT HAS PLFAs BY PERCENT #. THERE IS CODE TO SAVE THIS AT THE BOTTOM.
+my_PLFAs_percent <- my_PLFAs %>% select("SampleID", "Percent", "Peak Name")
+
+my_PLFAs_percent <- my_PLFAs_percent %>% 
+  filter(`Peak Name` != '') %>% 
+  pivot_wider(names_from = "Peak Name", values_from = "Percent")
+
+# OK back to data cleaning #
+
 #select only sampleID, Response, and Peak Name columns
-my_PLFAs <- outRTF %>% select("SampleID", "Response", "Peak Name")
-
-#select only the rows with your samples and blanks
-my_PLFAs <- my_PLFAs[1643:2186,]
+my_PLFAs <- my_PLFAs %>% select("SampleID", "Response", "Peak Name")
 
 #Pivot wider
 my_PLFAs_2 <- my_PLFAs %>% 
@@ -162,49 +209,55 @@ my_PLFAs_2 <- my_PLFAs %>%
 
 my_PLFAs_2 <- as.data.frame(my_PLFAs_2)
 
-#convert Sample ID to "rownames"
+#convert Sample ID to "rownames" and convert all other data to numeric
 names <- my_PLFAs_2$SampleID
-my_PLFAs_2 <- select (my_PLFAs_2, -SampleID)
+my_PLFAs_2 <- select (my_PLFAs_2, -c(SampleID, "SOLVENT PEAK"))
 
 my_PLFAs_2 <- as.data.frame(lapply(my_PLFAs_2,as.numeric))
 rownames(my_PLFAs_2) <- names
 
-#PART 1: Convert from peak area to nmol. We added 6.1 nmol of standard to each sample.
-my_PLFAs_3 <- my_PLFAs_2 * my_PLFAs_2$x19.0 * 6.1
+#pull out the internal standard and blank values that we'll use later
+internal_standard_values <- my_PLFAs_2$X19.0
+blank_internal_standard <- my_PLFAs_2["3-20-BLANK", "X19.0"]
+blank_all_values <- as.numeric(my_PLFAs_2["3-20-BLANK",])
 
+#check out blank_all_values. Did you have much contamination in the blank?
+blank_all_values
 
-area of peak/areaISTD * nmol of ISTD
+#subtract blank from all other rows. Then check: Does my_PLFAs_2 have all 0s in the blank column now?
+my_PLFAs_2 <- sweep(x = my_PLFAs_2, MARGIN = 2, STATS = blank_all_values, FUN = "-")
 
-#PART 2: Standardize by blank by multiplying every PLFA by "blank ISTD"/"sample ISTD"
+#PART 1: (area of peak/areaISTD * nmol of ISTD) 
+#Convert from peak area to nmol.
+
+my_PLFAs_3 <- (my_PLFAs_2 / internal_standard_values) * 6.1
+
+#PART 2: * (std area in blank/std area in sample)
   #after this, every sample 19:0 should be the same as blank 19:0
 
-#note to self: I want to save the value sample/blank in the final excel table
+correction_factor <- (blank_internal_standard/internal_standard_values)
+my_PLFAs_4 <- my_PLFAs_3 * correction_factor
 
-my_PLFAs_4 <- my_PLFAs_3 %>% 
-  mutate(across(everything(), ~ .x * my_PLFAs_3["1-10_Blank_Hannah", "X19.0"]/X19.0)) 
+#check out this correction factor to see if your extraction efficiency was ok (close to 1)
+(my_PLFAs_4$correction_factor <- correction_factor)
 
-#PART 3: Subtract blank peaks from samples and divide by g of soil
-    #set all NAs to 0
-outRTF4[is.na(outRTF4)] = 0
+#PART 3: Divide by g of soil
+#add back in correction factor, ID, and internal standard values
+my_PLFAs_4$internal_standard_peakarea <- internal_standard_values
+my_PLFAs_4$correction_factor <- correction_factor
+my_PLFAs_4$ID <- rownames(my_PLFAs_4)
 
-    #specify where your blank is
-blank <- as.numeric(outRTF4["1-10_Blank_Hannah",])
+#input a dataframe (from excel) with sample weights, where row names match the row names in my_PLFAs_4 and 
+weights <- as.data.frame(read_excel("PLFA IDs and Weights OREI 2021.xlsx", sheet = "Sheet2"))
+my_PLFAs_5 <- merge(my_PLFAs_4, weights, by = "ID")
 
-    #substract blank from all other rows
-outRTF5 <- sweep(x = outRTF4, MARGIN = 2, STATS = blank, FUN = "-")
-  
-    #add back in ISTD values- don't want to subtract those! also change all negatives to 0
-outRTF5$X19.0 <- outRTF4$X19.0
-outRTF5[outRTF5 < 0] <- 0 
+#divide by sample weight. make sure to only select numeric columns.
+my_PLFAs_6 <- (my_PLFAs_5[,2:70]/ my_PLFAs_5$Weight)
+
+#FINAL CLEANUP:
+   #set all NAs and negatives to 0
+my_PLFAs_6[is.na(my_PLFAs_6)] = 0
+my_PLFAs_6[my_PLFAs_6 < 0] <- 0 
 
 # Save the output to Excel
-wb <- createWorkbook()
-addWorksheet(wb, "OverviewData")
-addWorksheet(wb, "TabularData")
-
-writeDataTable(wb, "OverviewData", x = outPrim, tableStyle = "none", withFilter = FALSE)
-writeDataTable(wb, "TabularData", x = outRTF5, rowNames = TRUE, tableStyle = "none", withFilter = FALSE)
-
-saveWorkbook(wb, file = "Processed_1.4.2022.xlsx", overwrite = TRUE)
-
-#test change
+write_xlsx(list("PLFA_nmol_per_g" = my_PLFAs_6, "PLFA_percent" = my_PLFAs_percent), "PLFA_batch2.xlsx")
