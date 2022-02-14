@@ -189,12 +189,14 @@ write_xlsx(my_PLFAs, "parsedRTFs/PLFA_all.xlsx")
 #### DATA CLEANING ####
 #here, we select only the data we'll need, pull out our internal standard and blank values, subtract the blank peaks out from everything, and put it into a nice datatable
 
+my_PLFAs <- read_excel("parsedRTFs/PLFA_all.xlsx")
 
 # OPTIONAL: MAKE A SEPARATE DATA TABLE THAT HAS PLFAs BY PERCENT #. THERE IS CODE TO SAVE THIS AT THE BOTTOM.
 my_PLFAs_percent <- my_PLFAs %>% select("SampleID", "Percent", "Peak Name")
 
 my_PLFAs_percent <- my_PLFAs_percent %>% 
   filter(`Peak Name` != '') %>% 
+  filter(SampleID != "Calibration Mix MIDI in 2mL Hexane") %>% 
   pivot_wider(names_from = "Peak Name", values_from = "Percent")
 
 # OK back to data cleaning #
