@@ -151,21 +151,12 @@ for(i in 1:length(vol)){
 
 #check "outRTF." It should have all your sample names in "SampleID"
 
-#Stop here. Select only the rows with your samples and blanks, then save and move on to the next rtf file. Process all your rtf files and save them as different things, then merge all your PLFA rtf files into one big file to analyze together.
+#Select only the rows with your samples and blanks, then save. 
+my_PLFAs_batch1 <- outRTF[1643:2186,]
+write_xlsx(my_PLFAs_batch1, "parsedRTFs/PLFA_batch1.xlsx")
+#STOP HERE. Process all your rtf files and save them as different names.
 
-#my_PLFAs_batch1 <- outRTF[1643:2186,]
-#write_xlsx(my_PLFAs_batch1, "parsedRTFs/PLFA_batch1.xlsx")
-
-#my_PLFAs_batch2 <- outRTF[103:1628,]
-#write_xlsx(my_PLFAs_batch2, "parsedRTFs/PLFA_batch2.xlsx")
-
-#my_PLFAs_batch3 <- outRTF[46:1682,]
-#write_xlsx(my_PLFAs_batch3, "parsedRTFs/PLFA_batch3.xlsx")
-
-#my_PLFAs_batch4 <- outRTF[153:1338,]
-#write_xlsx(my_PLFAs_batch4, "parsedRTFs/PLFA_batch4.xlsx")
-
-#finally, merge all the data into one big dataframe. you can save it, to stop here and read it in later.
+#Next, merge all your PLFA rtf files into one big file, and save.
 my_PLFAs <- rbind(my_PLFAs_batch1, my_PLFAs_batch2, my_PLFAs_batch3, my_PLFAs_batch4, use.names = TRUE)
 write_xlsx(my_PLFAs, "parsedRTFs/PLFA_all.xlsx")
 
@@ -190,16 +181,6 @@ write_xlsx(my_PLFAs, "parsedRTFs/PLFA_all.xlsx")
 #here, we select only the data we'll need, pull out our internal standard and blank values, subtract the blank peaks out from everything, and put it into a nice datatable
 
 my_PLFAs <- read_excel("parsedRTFs/PLFA_all.xlsx")
-
-# OPTIONAL: MAKE A SEPARATE DATA TABLE THAT HAS PLFAs BY PERCENT #. THERE IS CODE TO SAVE THIS AT THE BOTTOM.
-my_PLFAs_percent <- my_PLFAs %>% select("SampleID", "Percent", "Peak Name")
-
-my_PLFAs_percent <- my_PLFAs_percent %>% 
-  filter(`Peak Name` != '') %>% 
-  filter(SampleID != "Calibration Mix MIDI in 2mL Hexane") %>% 
-  pivot_wider(names_from = "Peak Name", values_from = "Percent")
-
-# OK back to data cleaning #
 
 #select only sampleID, Response, and Peak Name columns
 my_PLFAs <- my_PLFAs %>% select("SampleID", "Response", "Peak Name")
@@ -262,4 +243,4 @@ my_PLFAs_6[is.na(my_PLFAs_6)] = 0
 my_PLFAs_6[my_PLFAs_6 < 0] <- 0 
 
 # Save the output to Excel
-write_xlsx(list("PLFA_nmol_per_g" = my_PLFAs_6, "PLFA_percent" = my_PLFAs_percent), "PLFA_batch2.xlsx")
+write_xlsx(list("PLFA_nmol_per_g" = my_PLFAs_6), "PLFA_cleaned_data_DATE.xlsx")
