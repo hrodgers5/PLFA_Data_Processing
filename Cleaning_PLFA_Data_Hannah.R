@@ -11,10 +11,10 @@ require(writexl)
 #Last updated 1/31/2022
 
 #### PARSING THE RTF FILE ####
-setwd("C:/Users/hanna/Desktop/Work in Progress/PLFA/OREI 2021 PLFA Data/")
+  setwd("C:/Users/hanna/Desktop/Work in Progress/OREI 2021 PLFA Data/")
 
 # Read in the rtf file, each row is a character within a vector
-rtf<- read_rtf("OREI batch1 1.05.22.rtf") %>% 
+rtf<- read_rtf("OREI batch5 2.9.22.rtf") %>% 
   # split elements by newline character, if present
   str_split(pattern='\n') %>% 
   unlist()
@@ -147,18 +147,15 @@ for(i in 1:length(vol)){
   outRTF<- rbind(outRTF, tmpDF)
   
 }
-# (hannah's part): MERGING YOUR RTF FILES ####
+# (hannah's part): SAVE THOSE FILES ####
 
 #check "outRTF." It should have all your sample names in "SampleID"
 
-#Select only the rows with your samples and blanks, then save. 
-my_PLFAs_batch1 <- outRTF[1643:2186,]
-write_xlsx(my_PLFAs_batch1, "parsedRTFs/PLFA_batch1.xlsx")
-#STOP HERE. Process all your rtf files and save them as different names.
+#Select only the rows with your samples and blanks, then save.
+my_PLFAs_batch5 <- outRTF[202:2329,]
+write_xlsx(my_PLFAs_batch5, "parsedRTFs/PLFA_batch5.xlsx")
 
-#Next, merge all your PLFA rtf files into one big file, and save.
-my_PLFAs <- rbind(my_PLFAs_batch1, my_PLFAs_batch2, my_PLFAs_batch3, my_PLFAs_batch4, use.names = TRUE)
-write_xlsx(my_PLFAs, "parsedRTFs/PLFA_all.xlsx")
+#STOP HERE. Process all your rtf files and save them as different names.
 
 #### DATA PROCESSING ####
 
@@ -180,10 +177,11 @@ write_xlsx(my_PLFAs, "parsedRTFs/PLFA_all.xlsx")
 #### DATA CLEANING ####
 #here, we select only the data we'll need, pull out our internal standard and blank values, subtract the blank peaks out from everything, and put it into a nice datatable
 
-my_PLFAs <- read_excel("parsedRTFs/PLFA_all.xlsx")
+my_PLFAs <- read_excel("parsedRTFs/PLFA_batch5.xlsx")
 
 #select only sampleID, Response, and Peak Name columns
 my_PLFAs <- my_PLFAs %>% select("SampleID", "Response", "Peak Name")
+my_PLFAs <- subset(my_PLFAs, SampleID != 'Calibration Mix MIDI in 2mL Hexane')
 
 #Pivot wider
 my_PLFAs_2 <- my_PLFAs %>% 
@@ -192,28 +190,37 @@ my_PLFAs_2 <- my_PLFAs %>%
 
 my_PLFAs_2 <- as.data.frame(my_PLFAs_2)
 
-#convert Sample ID to "rownames" and convert all other data to numeric
+#set rownames as Sample ID. Convert data to numeric. Set NAs to 0
 names <- my_PLFAs_2$SampleID
 my_PLFAs_2 <- select (my_PLFAs_2, -c(SampleID, "SOLVENT PEAK"))
 
-my_PLFAs_2 <- as.data.frame(lapply(my_PLFAs_2,as.numeric))
+my_PLFAs_2 <- as.data.frame(lapply(my_PLFAs_2, as.numeric))
+
 rownames(my_PLFAs_2) <- names
+my_PLFAs_2[is.na(my_PLFAs_2)] = 0
+view(my_PLFAs_2)
 
-#pull out the internal standard and blank values that we'll use later
-internal_standard_values <- my_PLFAs_2$X19.0
-blank_internal_standard <- my_PLFAs_2["3-20-BLANK", "X19.0"]
-blank_all_values <- as.numeric(my_PLFAs_2["3-20-BLANK",])
+#fix sample ID names if you need to
+#rownames(my_PLFAs_2) <- c("1-1", "1-2", "1-3", "1-4", "1-5", "1-6", "1-7", "1-8","1-9", "1-10-B")
 
-#check out blank_all_values. Did you have much contamination in the blank?
-blank_all_values
+##pull out the internal standard and blank values that we'll use later. CHECK THEM
 
-#subtract blank from all other rows. Then check: Does my_PLFAs_2 have all 0s in the blank column now?
-my_PLFAs_2 <- sweep(x = my_PLFAs_2, MARGIN = 2, STATS = blank_all_values, FUN = "-")
+#internal standard- is it nearly the same between samples?
+(internal_standard_values <- my_PLFAs_2$X19.0)
+
+#SPECIFY YOUR BLANK and check out the values as they print. Did your blank have much contamination?
+(blank_internal_standard <- my_PLFAs_2['5-20 (blank)', "X19.0"])
+(blank_all_values <- t(my_PLFAs_2["1-10-B",]))
+
+#subtract blank from all other rows, then set negatives to 0. CHECK: Does blank have all 0s now?
+my_PLFAs_3 <- sweep(x = my_PLFAs_2, MARGIN = 2, STATS = blank_all_values, FUN = "-")
+
+my_PLFAs_3[my_PLFAs_3 < 0] <- 0 
 
 #PART 1: (area of peak/areaISTD * nmol of ISTD) 
-#Convert from peak area to nmol.
+  #Convert from peak area to nmol.
 
-my_PLFAs_3 <- (my_PLFAs_2 / internal_standard_values) * 6.1
+my_PLFAs_3 <- (my_PLFAs_3 / internal_standard_values) * 6.1
 
 #PART 2: * (std area in blank/std area in sample)
   #after this, every sample 19:0 should be the same as blank 19:0
@@ -225,22 +232,101 @@ my_PLFAs_4 <- my_PLFAs_3 * correction_factor
 (my_PLFAs_4$correction_factor <- correction_factor)
 
 #PART 3: Divide by g of soil
-#add back in correction factor, ID, and internal standard values
-my_PLFAs_4$internal_standard_peakarea <- internal_standard_values
-my_PLFAs_4$correction_factor <- correction_factor
-my_PLFAs_4$ID <- rownames(my_PLFAs_4)
 
-#input a dataframe (from excel) with sample weights, where row names match the row names in my_PLFAs_4 and 
+#input a dataframe (from excel) with sample weights, where Sample ID matches the IDs in my_PLFAs_4
 weights <- as.data.frame(read_excel("PLFA IDs and Weights OREI 2021.xlsx", sheet = "Sheet2"))
-my_PLFAs_5 <- merge(my_PLFAs_4, weights, by = "ID")
 
-#divide by sample weight. make sure to only select numeric columns.
-my_PLFAs_6 <- (my_PLFAs_5[,2:70]/ my_PLFAs_5$Weight)
+#merge by rownames
+my_PLFAs_4$ID <- rownames(my_PLFAs_4)
+my_PLFAs_5 <- merge(weights, my_PLFAs_4, by = "ID")
+view(my_PLFAs_5)
 
-#FINAL CLEANUP:
-   #set all NAs and negatives to 0
-my_PLFAs_6[is.na(my_PLFAs_6)] = 0
-my_PLFAs_6[my_PLFAs_6 < 0] <- 0 
+#divide by sample weight. make sure to only select numeric columns w biomarkers.
+my_PLFAs_5[,4:66] <- (my_PLFAs_5[,4:66]/ my_PLFAs_5$Weight)
 
-# Save the output to Excel
-write_xlsx(list("PLFA_nmol_per_g" = my_PLFAs_6), "PLFA_cleaned_data_DATE.xlsx")
+#here you can save the cleaned file, then merge all files. 
+write_xlsx(my_PLFAs_5, "parsedRTFs/PLFA_batch5_clean.xlsx")
+
+#Clear the environment before you start the next file
+rm(list=ls()) 
+
+#read in all cleaned files, then merge
+PLFAs_batch1 <- read_excel("parsedRTFs/PLFA_batch1_clean.xlsx")
+PLFAs_batch2 <- read_excel("parsedRTFs/PLFA_batch2_clean.xlsx")
+PLFAs_batch3 <- read_excel("parsedRTFs/PLFA_batch3_clean.xlsx")
+PLFAs_batch4 <- read_excel("parsedRTFs/PLFA_batch4_clean.xlsx")
+PLFAs_batch5 <- read_excel("parsedRTFs/PLFA_batch5_clean.xlsx")
+
+PLFAs_cleaned <- bind_rows(PLFAs_batch1, PLFAs_batch2, PLFAs_batch3, PLFAs_batch4, PLFAs_batch5)
+
+write_xlsx(PLFAs_cleaned, "parsedRTFs/PLFA_cleaned_all.xlsx")
+
+#### FINAL DATA ANALYSES ####
+
+#rename the peaks!
+PLFAs <- PLFAs_cleaned[,1:2]
+
+attach(PLFAs_cleaned)
+
+PLFAs$bacteria <- `X14.0` + `X15.0.anteiso` + `X17.1.iso.w9c` + `X17.0.iso` + 
+  `X17.0.anteiso` + `X17.1.w8c`
+
+PLFAs$acinomycetes <- `X16.0.10.methyl` + `X17.0.10.methyl` + `X18.0.10.methyl`
+
+PLFAs$gram_neg <- `X16.1.w7c` + `X17.0.cyclo` + `X18.1.w5c` + `X18.1.w7c`
+
+PLFAs$gram_pos <- `X15.0.iso` + `X16.0.iso`
+
+PLFAs$AMF <- `X16.1.w5c`
+
+PLFAs$sapro_fungi <- `X18.2.w6c` + `X18.1.w9c`
+
+PLFAs$other_mic <- `X15.0` + `X16.0` + `X17.0` + `X18.0`
+                           
+detach (PLFAs_cleaned)
+
+#calculate sums
+attach(PLFAs)
+
+total_MB <- sum(PLFAs[,3:9])
+
+PLFAs$total_fungi <- sapro_fungi + AMF
+
+PLFAs$total_bacteria <- bacteria + gram_neg + gram_pos + acinomycetes
+
+PLFAs$F_to_B <- total_fungi / PLFAs$total_bacteria
+
+detach(PLFAs)
+
+#FINAL SAVE!!
+write_xlsx(PLFAs, "PLFAs_FINAL_OREI_2021.xlsx")
+
+#### OTHER THINGS- NOT USED ####
+
+PLFAs_cleaned_2 <- rename(PLFAs_cleaned, 
+                          "bacteria" = X14.0, 
+                          "gram +" = X15.0.iso,
+                          "bacteria" = X15.0.anteiso,
+                          "total" = X15.0,
+                          "gram +" = X16.0.iso,
+                          "gram -" = X16.1.w7c,
+                          "AMF" = X16.1.w5c,
+                          "total" = X16.0,
+                          "actinomycetes" = X16.0.10.methyl,  
+                          "bacteria" = X17.1.iso.w9c,
+                          "bacteria" = X17.0.iso, 
+                          "bacteria" = X17.0.anteiso, 
+                          "bacteria" = X17.1.w8c, 
+                          "gram -" = X17.0.cyclo, 
+                          "total" = X17.0, 
+                          "actinobacteria" = X17.0.10.methyl, 
+                          "fungi" = X18.2.w6c, 
+                          "fungi" = X18.1.w9c, 
+                          "gram -" = X18.1.w7c,
+                          "gram -" = X18.1.w5c,  
+                          "total" = X18.0, 
+                          "actinomycetes" = X18.0.10.methyl)
+
+#code to make a peak names vector
+PEAK_NAMES <- structure(list(X14.0 = "bacteria", X15.0.iso = "gram +", X15.0.anteiso =  "bacteria", X15.0 = "total", X16.0.iso = "gram +", X16.1.w7c = "gram -", 
+                             X16.1.w5c = "AMF", X16.0 = "total", X16.0.10.methyl =  "actinomycetes", X17.1.iso.w9c = "bacteria", X17.0.iso = "bacteria", X17.0.anteiso = "bacteria", X17.1.w8c = "bacteria", X17.0.cyclo = "gram -", X17.0 =  "total", X17.0.10.methyl = "actinobacteria", X18.2.w6c = "fungi", X18.1.w9c = "fungi", X18.1.w7c = "gram -", X18.1.w5c = "gram -",  X18.0 = "total", X18.0.10.methyl = "actinomycetes"), row.names = "", class = "data.frame")
