@@ -269,10 +269,10 @@ PLFAs <- PLFAs_cleaned[,1:2]
 
 attach(PLFAs_cleaned)
 
-PLFAs$bacteria <- `X14.0` + `X15.0.anteiso` + `X17.1.iso.w9c` + `X17.0.iso` + 
+PLFAs$other_bacteria <- `X14.0` + `X15.0.anteiso` + `X17.1.iso.w9c` + `X17.0.iso` + 
   `X17.0.anteiso` + `X17.1.w8c`
 
-PLFAs$acinomycetes <- `X16.0.10.methyl` + `X17.0.10.methyl` + `X18.0.10.methyl`
+PLFAs$actinomycetes <- `X16.0.10.methyl` + `X17.0.10.methyl` + `X18.0.10.methyl`
 
 PLFAs$gram_neg <- `X16.1.w7c` + `X17.0.cyclo` + `X18.1.w5c` + `X18.1.w7c`
 
@@ -282,7 +282,7 @@ PLFAs$AMF <- `X16.1.w5c`
 
 PLFAs$sapro_fungi <- `X18.2.w6c` + `X18.1.w9c`
 
-PLFAs$other_mic <- `X15.0` + `X16.0` + `X17.0` + `X18.0`
+PLFAs$other_microbes <- `X15.0` + `X16.0` + `X17.0` + `X18.0`
                            
 detach (PLFAs_cleaned)
 
@@ -293,14 +293,16 @@ PLFAs$total_MB <- rowSums(PLFAs[,3:9])
 
 PLFAs$total_fungi <- sapro_fungi + AMF
 
-PLFAs$total_bacteria <- bacteria + gram_neg + gram_pos + acinomycetes
+PLFAs$total_bacteria <- other_bacteria + gram_neg + gram_pos + actinomycetes
 
 PLFAs$F_to_B <- PLFAs$total_fungi / PLFAs$total_bacteria
+
+PLFAs <- select(PLFAs, !c(other_bacteria, other_microbes))
 
 detach(PLFAs)
 
 #FINAL SAVE!!
-write_xlsx(PLFAs, "PLFAs_FINAL_OREI_2021.xlsx")
+write_xlsx(PLFAs, "PLFAs_FINAL_OREI_2021_2.xlsx")
 
 #### OTHER THINGS- NOT USED ####
 
