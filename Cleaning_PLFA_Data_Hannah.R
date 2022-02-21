@@ -11,7 +11,7 @@ require(writexl)
 #Last updated 1/31/2022
 
 #### PARSING THE RTF FILE ####
-  setwd("C:/Users/hanna/Desktop/Work in Progress/OREI 2021 PLFA Data/")
+  setwd("C:/Users/hanna/Desktop/GRAD PROJECTS/OREI/OREI 2021 PLFA Data/")
 
 # Read in the rtf file, each row is a character within a vector
 rtf<- read_rtf("OREI batch5 2.9.22.rtf") %>% 
@@ -262,6 +262,7 @@ PLFAs_cleaned <- bind_rows(PLFAs_batch1, PLFAs_batch2, PLFAs_batch3, PLFAs_batch
 write_xlsx(PLFAs_cleaned, "parsedRTFs/PLFA_cleaned_all.xlsx")
 
 #### FINAL DATA ANALYSES ####
+PLFAs_cleaned <- read_excel("parsedRTFs/PLFA_cleaned_all.xlsx")
 
 #rename the peaks!
 PLFAs <- PLFAs_cleaned[,1:2]
@@ -288,13 +289,13 @@ detach (PLFAs_cleaned)
 #calculate sums
 attach(PLFAs)
 
-total_MB <- sum(PLFAs[,3:9])
+PLFAs$total_MB <- rowSums(PLFAs[,3:9])
 
 PLFAs$total_fungi <- sapro_fungi + AMF
 
 PLFAs$total_bacteria <- bacteria + gram_neg + gram_pos + acinomycetes
 
-PLFAs$F_to_B <- total_fungi / PLFAs$total_bacteria
+PLFAs$F_to_B <- PLFAs$total_fungi / PLFAs$total_bacteria
 
 detach(PLFAs)
 
