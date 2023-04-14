@@ -8,7 +8,7 @@ require(writexl)
 #Authors: This R script was written by Shannon Albeke (the parsing RTF file part) and Hannah Rodgers (the data processing part).
 
 #Aim: To take an RTF file with PLFA results from the GC, convert to excel, clean, and process the data.
-
+#processed in R 4.2.2
 #Last updated 1/31/2022
 
 #### PARSING THE RTF FILE ####
